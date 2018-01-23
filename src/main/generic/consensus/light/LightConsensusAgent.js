@@ -3,9 +3,10 @@ class LightConsensusAgent extends FullConsensusAgent {
      * @param {LightChain} blockchain
      * @param {Mempool} mempool
      * @param {Peer} peer
+     * @param {Time} time
      */
-    constructor(blockchain, mempool, peer) {
-        super(blockchain, mempool, peer);
+    constructor(blockchain, mempool, peer, time) {
+        super(blockchain, mempool, peer, time);
         /** @type {LightChain} */
         this._blockchain = blockchain;
         /** @type {PartialLightChain} */
@@ -96,7 +97,7 @@ class LightConsensusAgent extends FullConsensusAgent {
             let header;
             try {
                 header = await this.getHeader(this._syncTarget);
-            } catch(err) {
+            } catch (err) {
                 this._peer.channel.close('Did not get requested header');
                 return;
             }
@@ -235,6 +236,17 @@ class LightConsensusAgent extends FullConsensusAgent {
 
         if (this._syncing) {
             this.fire('verify-chain-proof', this._peer.peerAddress);
+        }
+
+        // Verify timestamp of all prefix blocks in the proof
+        for (let i = 0; i < msg.proof.prefix.length; i++) {
+            const block = msg.proof.prefix.blocks[i];
+            if (block.header.timestamp * 1000 > this._time.now() + Block.TIMESTAMP_DRIFT_MAX * 1000) {
+                Log.w(LightConsensusAgent, 'Rejecting proof - prefix contains invalid block');
+                // TODO ban instead?
+                this._peer.channel.close('invalid chain proof');
+                return;
+            }
         }
 
         // Push the proof into the LightChain.

@@ -47,6 +47,9 @@ class LightChain extends FullChain {
         return this;
     }
 
+    /**
+     * @return {PartialLightChain}
+     */
     async partialChain() {
         const proof = await this.getChainProof();
         const partialChain = new PartialLightChain(this._store, this._accounts, proof);

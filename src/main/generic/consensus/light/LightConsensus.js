@@ -58,7 +58,7 @@ class LightConsensus extends Observable {
      */
     _onPeerJoined(peer) {
         // Create a ConsensusAgent for each peer that connects.
-        const agent = new LightConsensusAgent(this._blockchain, this._mempool, peer);
+        const agent = new LightConsensusAgent(this._blockchain, this._mempool, peer, this._network.time);
         this._agents.put(peer.id, agent);
 
         // Register agent event listeners.

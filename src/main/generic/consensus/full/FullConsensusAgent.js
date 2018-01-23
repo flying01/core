@@ -3,9 +3,10 @@ class FullConsensusAgent extends BaseConsensusAgent {
      * @param {FullChain} blockchain
      * @param {Mempool} mempool
      * @param {Peer} peer
+     * @param {Time} time
      */
-    constructor(blockchain, mempool, peer) {
-        super(peer);
+    constructor(blockchain, mempool, peer, time) {
+        super(peer, time);
         /** @type {FullChain} */
         this._blockchain = blockchain;
         /** @type {Mempool} */

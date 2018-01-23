@@ -4,11 +4,14 @@
 class BaseConsensusAgent extends Observable {
     /**
      * @param {Peer} peer
+     * @param {Time} time
      */
-    constructor(peer) {
+    constructor(peer, time) {
         super();
         /** @type {Peer} */
         this._peer = peer;
+        /** @type {Time} */
+        this._time = time;
 
         // Flag indicating that have synced our blockchain with the peer's.
         /** @type {boolean} */
@@ -115,7 +118,7 @@ class BaseConsensusAgent extends Observable {
         let size = 0;
         while (invVectors.length <= BaseInventoryMessage.VECTORS_MAX_COUNT && this._waitingFreeInvVectors.length > 0
             && size < BaseConsensusAgent.FREE_TRANSACTION_SIZE_PER_INTERVAL) {
-            const {serializedSize, vector} = this._waitingFreeInvVectors.dequeue();
+            const { serializedSize, vector } = this._waitingFreeInvVectors.dequeue();
             invVectors.push(vector);
             size += serializedSize;
         }
@@ -146,8 +149,8 @@ class BaseConsensusAgent extends Observable {
 
         // Relay transaction to peer later.
         const serializedSize = transaction.serializedSize;
-        if (transaction.fee/serializedSize < BaseConsensusAgent.TRANSACTION_RELAY_FEE_MIN) {
-            this._waitingFreeInvVectors.enqueue({serializedSize, vector});
+        if (transaction.fee / serializedSize < BaseConsensusAgent.TRANSACTION_RELAY_FEE_MIN) {
+            this._waitingFreeInvVectors.enqueue({ serializedSize, vector });
         } else {
             this._waitingInvVectors.enqueue(vector);
         }
@@ -370,6 +373,16 @@ class BaseConsensusAgent extends Observable {
 
         // Process block.
         this._objectsProcessing.add(vector);
+
+        // Check that the timestamp is not too far into the future.
+        if (msg.block.header.timestamp * 1000 > this._time.now() + Block.TIMESTAMP_DRIFT_MAX * 1000) {
+            this._peer.channel.ban('received invalid block');
+            // Mark object as processed.
+            this._onObjectProcessed(vector);
+            Log.w(BaseConsensusAgent, 'Invalid block - timestamp too far in the future');
+            return;
+        }
+
         await this._processBlock(hash, msg.block);
 
         // Mark object as processed.

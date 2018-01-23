@@ -3,9 +3,10 @@ class NanoConsensusAgent extends BaseConsensusAgent {
      * @param {NanoChain} blockchain
      * @param {NanoMempool} mempool
      * @param {Peer} peer
+     * @param {Time} time
      */
-    constructor(blockchain, mempool, peer) {
-        super(peer);
+    constructor(blockchain, mempool, peer, time) {
+        super(peer, time);
         /** @type {NanoChain} */
         this._blockchain = blockchain;
         /** @type {NanoMempool} */
@@ -106,6 +107,17 @@ class NanoConsensusAgent extends BaseConsensusAgent {
 
         if (this._syncing) {
             this.fire('verify-chain-proof', this._peer.peerAddress);
+        }
+
+        // Verify timestamp of all prefix blocks in the proof
+        for (let i = 0; i < msg.proof.prefix.length; i++) {
+            const block = msg.proof.prefix.blocks[i];
+            if (block.header.timestamp * 1000 > this._time.now() + Block.TIMESTAMP_DRIFT_MAX * 1000) {
+                Log.w(NanoConsensusAgent, 'Rejecting proof - prefix contains invalid block');
+                // TODO ban instead?
+                this._peer.channel.close('invalid chain proof');
+                return;
+            }
         }
 
         // Push the proof into the NanoChain.
@@ -528,8 +540,10 @@ class NanoConsensusAgent extends BaseConsensusAgent {
         }
 
         // Verify block.
+        // Check that the timestamp is not too far into the future.
+        const invalidTimestamp = (msg.block.header.timestamp * 1000 > this._time.now() + Block.TIMESTAMP_DRIFT_MAX * 1000);
         // TODO should we let the caller do that instead?
-        if (!(await msg.block.verify())) {
+        if (invalidTimestamp || !(await msg.block.verify())) {
             Log.w(NanoConsensusAgent, `Invalid block received from ${this._peer.peerAddress}`);
             // TODO ban instead?
             this._peer.channel.close('Invalid block');
